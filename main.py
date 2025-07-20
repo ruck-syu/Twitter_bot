@@ -1,49 +1,54 @@
+# main.py
+
 from datetime import datetime, timedelta
-from tweet_utils import post_tweet, get_last_percent, save_last_percent
+from tweet_utils import post_tweet
+import os
+
+STATE_FILE = "last_percentage.txt"
 
 def get_time_until_friday_night():
     now = datetime.now()
-    # Target: Friday 6:00 PM
-    weekday = now.weekday()
-    days_until_friday = (4 - weekday) % 7
-    target = (now + timedelta(days=days_until_friday)).replace(hour=18, minute=0, second=0, microsecond=0)
-    if weekday > 4 or (weekday == 4 and now.hour >= 18):
-        # After Friday 6PM, target next week's Friday
-        target += timedelta(days=7)
-    return target - now
+    friday_6pm = now + timedelta((4 - now.weekday()) % 7)
+    friday_6pm = friday_6pm.replace(hour=18, minute=0, second=0, microsecond=0)
+    if now > friday_6pm:
+        friday_6pm += timedelta(days=7)
+    return friday_6pm - now
 
 def format_countdown_message(time_left, percent_done):
+    green_boxes = "🟩" * int(percent_done / 10) + "⬜" * (10 - int(percent_done / 10))
     days = time_left.days
-    hours, rem = divmod(time_left.seconds, 3600)
-    minutes = rem // 60
-
-    # Green box progress bar
-    blocks = 10
-    filled = int((percent_done / 100) * blocks)
-    progress_bar = "🟩" * filled + "⬜" * (blocks - filled)
-
+    hours, remainder = divmod(time_left.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
     return (
-        f"{days}d {hours}h {minutes}m until Friday night! 🎉\n"
-        f"{progress_bar} {percent_done:.1f}%\n"
-        f"Friday is {percent_done:.1f}% closer! #FridayFeeling"
+        f"{green_boxes} {percent_done:.0f}% complete\n"
+        f"⏳ {days}d {hours}h {minutes}m until Friday night! 🎉"
     )
+
+def load_last_percentage():
+    if not os.path.exists(STATE_FILE):
+        return -10  # Force first tweet at 0%
+    with open(STATE_FILE, "r") as file:
+        return int(file.read().strip())
+
+def save_last_percentage(percentage):
+    with open(STATE_FILE, "w") as file:
+        file.write(str(percentage))
 
 def main():
     time_left = get_time_until_friday_night()
-    total_minutes = (4 * 24 + 18) * 60  # 4140 minutes from Sat 00:00 to Fri 18:00
+    total_minutes = 4 * 24 * 60 + 18 * 60  # Monday 00:00 to Friday 18:00
     minutes_left = time_left.total_seconds() / 60
-    minutes_passed = max(0, total_minutes - minutes_left)
+    percent_done = ((total_minutes - minutes_left) / total_minutes) * 100
+    current_rounded = int(percent_done // 10) * 10
 
-    percent_done = round((minutes_passed / total_minutes) * 100, 1)
-    current_percent = int(percent_done)
-    last_percent = get_last_percent()
+    last_posted = load_last_percentage()
 
-    if current_percent % 10 == 0 and current_percent != last_percent:
-        tweet = format_countdown_message(time_left, percent_done)
-        post_tweet(tweet)
-        save_last_percent(current_percent)
+    if current_rounded > last_posted:
+        save_last_percentage(current_rounded)
+        message = format_countdown_message(time_left, current_rounded)
+        post_tweet(message)
     else:
-        print(f"Current: {current_percent}%, Last posted: {last_percent}%. No tweet posted.")
+        print(f"[INFO] Not time to tweet yet. Current progress: {percent_done:.1f}%")
 
 if __name__ == "__main__":
     main()
