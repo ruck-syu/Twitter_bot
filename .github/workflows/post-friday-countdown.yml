@@ -2,7 +2,7 @@ name: Friday Countdown Bot
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Every 30 minutes
+    - cron: "*/6 * * * *"  # Every 6 minutes
   workflow_dispatch:        # Allow manual run from GitHub UI
 
 jobs:
