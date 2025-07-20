@@ -1,54 +1,31 @@
-# main.py
+from datetime import timedelta
+from tweet_utils import get_time_left_and_progress, post_tweet_if_needed
 
-from datetime import datetime, timedelta
-from tweet_utils import post_tweet
-import os
+# Track last posted percent to avoid duplicate tweets
+LAST_POSTED_FILE = "last_posted.txt"
 
-STATE_FILE = "last_percentage.txt"
+def read_last_posted():
+    try:
+        with open(LAST_POSTED_FILE, "r") as f:
+            return int(f.read().strip())
+    except:
+        return -1
 
-def get_time_until_friday_night():
-    now = datetime.now()
-    friday_6pm = now + timedelta((4 - now.weekday()) % 7)
-    friday_6pm = friday_6pm.replace(hour=18, minute=0, second=0, microsecond=0)
-    if now > friday_6pm:
-        friday_6pm += timedelta(days=7)
-    return friday_6pm - now
-
-def format_countdown_message(time_left, percent_done):
-    green_boxes = "🟩" * int(percent_done / 10) + "⬜" * (10 - int(percent_done / 10))
-    days = time_left.days
-    hours, remainder = divmod(time_left.seconds, 3600)
-    minutes, _ = divmod(remainder, 60)
-    return (
-        f"{green_boxes} {percent_done:.0f}% complete\n"
-        f"⏳ {days}d {hours}h {minutes}m until Friday night! 🎉"
-    )
-
-def load_last_percentage():
-    if not os.path.exists(STATE_FILE):
-        return -10  # Force first tweet at 0%
-    with open(STATE_FILE, "r") as file:
-        return int(file.read().strip())
-
-def save_last_percentage(percentage):
-    with open(STATE_FILE, "w") as file:
-        file.write(str(percentage))
+def write_last_posted(percent):
+    with open(LAST_POSTED_FILE, "w") as f:
+        f.write(str(percent))
 
 def main():
-    time_left = get_time_until_friday_night()
-    total_minutes = 4 * 24 * 60 + 18 * 60  # Monday 00:00 to Friday 18:00
-    minutes_left = time_left.total_seconds() / 60
-    percent_done = ((total_minutes - minutes_left) / total_minutes) * 100
-    current_rounded = int(percent_done // 10) * 10
+    time_left, percent_done = get_time_left_and_progress()
+    rounded = int(percent_done // 10) * 10
 
-    last_posted = load_last_percentage()
-
-    if current_rounded > last_posted:
-        save_last_percentage(current_rounded)
-        message = format_countdown_message(time_left, current_rounded)
-        post_tweet(message)
+    last_posted = read_last_posted()
+    if rounded != last_posted and rounded % 10 == 0:
+        print(f"Tweeting at {rounded}% progress")
+        post_tweet_if_needed(time_left, percent_done)
+        write_last_posted(rounded)
     else:
-        print(f"[INFO] Not time to tweet yet. Current progress: {percent_done:.1f}%")
+        print(f"Not time to tweet yet. Current progress: {percent_done:.1f}%")
 
 if __name__ == "__main__":
     main()
